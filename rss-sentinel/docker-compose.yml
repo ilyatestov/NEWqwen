@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  rss-sentinel:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: rss-sentinel
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_IDS=${ADMIN_IDS}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - WEB_PORT=${WEB_PORT:-8000}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-300}
+      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID:-}
+    env_file:
+      - .env
+    networks:
+      - sentinel-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+networks:
+  sentinel-net:
+    driver: bridge
+
+volumes:
+  data:
+  logs:

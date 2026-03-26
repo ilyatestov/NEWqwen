@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  rss-hub:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: rss-hub
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_IDS=${ADMIN_IDS}
+      - CHANNEL_ID=${CHANNEL_ID}
+      - DATABASE_PATH=/app/data/rss_hub.db
+      - WEB_HOST=0.0.0.0
+      - WEB_PORT=8000
+      - LOG_LEVEL=INFO
+      - ENVIRONMENT=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - rss-hub-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+networks:
+  rss-hub-network:
+    driver: bridge
+
+volumes:
+  data:
+  logs:

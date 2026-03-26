@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSS Hub Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="min-h-screen">
+        <!-- Navigation -->
+        <nav class="bg-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center">
+                        <i class="fas fa-rss-square text-blue-600 text-2xl mr-3"></i>
+                        <h1 class="text-xl font-bold text-gray-800">RSS Hub</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span :class="statusClass" class="px-3 py-1 rounded-full text-sm">
+                            <i :class="statusIcon" class="mr-2"></i>
+                            {{ systemStatus }}
+                        </span>
+                        <button @click="refreshData" class="text-gray-600 hover:text-blue-600">
+                            <i class="fas fa-sync-alt" :class="{'animate-spin': loading}"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 bg-blue-100 rounded-full">
+                            <i class="fas fa-rss text-blue-600 text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-gray-500 text-sm">Active Feeds</p>
+                            <p class="text-2xl font-bold">{{ stats.total_feeds }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 bg-green-100 rounded-full">
+                            <i class="fas fa-newspaper text-green-600 text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-gray-500 text-sm">Total Entries</p>
+                            <p class="text-2xl font-bold">{{ stats.total_entries }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 bg-purple-100 rounded-full">
+                            <i class="fas fa-chart-line text-purple-600 text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-gray-500 text-sm">Posts Today</p>
+                            <p class="text-2xl font-bold">{{ todayPosts }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Feed Form -->
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <h2 class="text-lg font-semibold mb-4">Add New Feed</h2>
+                <form @submit.prevent="addFeed" class="flex gap-4">
+                    <input 
+                        v-model="newFeed.url" 
+                        type="url" 
+                        placeholder="RSS Feed URL" 
+                        class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                    >
+                    <input 
+                        v-model="newFeed.title" 
+                        type="text" 
+                        placeholder="Title (optional)" 
+                        class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                    <button 
+                        type="submit" 
+                        :disabled="adding"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        <i class="fas fa-plus mr-2"></i>
+                        {{ adding ? 'Adding...' : 'Add Feed' }}
+                    </button>
+                </form>
+            </div>
+
+            <!-- Feeds List -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b flex justify-between items-center">
+                    <h2 class="text-lg font-semibold">RSS Feeds</h2>
+                    <button @click="checkAllFeeds" class="text-blue-600 hover:text-blue-800 text-sm">
+                        <i class="fas fa-play mr-1"></i> Check All Now
+                    </button>
+                </div>
+                <div class="divide-y">
+                    <div v-for="feed in feeds" :key="feed.id" class="p-4 hover:bg-gray-50 flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3">
+                                <span :class="feed.is_active ? 'text-green-500' : 'text-red-500'">
+                                    <i :class="feed.is_active ? 'fas fa-check-circle' : 'fas fa-times-circle'"></i>
+                                </span>
+                                <h3 class="font-medium">{{ feed.title || 'Untitled' }}</h3>
+                                <span class="text-xs bg-gray-200 px-2 py-1 rounded">ID: {{ feed.id }}</span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1 truncate">{{ feed.url }}</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Last check: {{ formatLastCheck(feed.last_check) }}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button @click="checkFeed(feed.id)" class="text-blue-600 hover:text-blue-800 p-2">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                            <button @click="removeFeed(feed.id)" class="text-red-600 hover:text-red-800 p-2">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="feeds.length === 0" class="p-8 text-center text-gray-500">
+                        <i class="fas fa-inbox text-4xl mb-4"></i>
+                        <p>No feeds configured yet. Add your first RSS feed above!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="bg-white rounded-lg shadow p-6 mt-8">
+                <h2 class="text-lg font-semibold mb-4">Activity (Last 7 Days)</h2>
+                <canvas id="activityChart" height="80"></canvas>
+            </div>
+        </main>
+
+        <!-- Toast Notification -->
+        <div v-if="toast.show" :class="toastClass" class="fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg transition-all">
+            <i :class="toastIcon" class="mr-2"></i>
+            {{ toast.message }}
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    apiBase: window.location.origin,
+                    loading: false,
+                    adding: false,
+                    feeds: [],
+                    stats: { total_feeds: 0, total_entries: 0, daily_posts: {} },
+                    schedulerStatus: 'unknown',
+                    newFeed: { url: '', title: '' },
+                    toast: { show: false, message: '', type: 'info' },
+                    chart: null
+                };
+            },
+            computed: {
+                systemStatus() {
+                    return this.schedulerStatus === 'running' ? 'System Online' : 'System Offline';
+                },
+                statusClass() {
+                    return this.schedulerStatus === 'running' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800';
+                },
+                statusIcon() {
+                    return this.schedulerStatus === 'running' 
+                        ? 'fas fa-check' 
+                        : 'fas fa-exclamation-triangle';
+                },
+                toastClass() {
+                    const colors = {
+                        success: 'bg-green-500 text-white',
+                        error: 'bg-red-500 text-white',
+                        info: 'bg-blue-500 text-white'
+                    };
+                    return colors[this.toast.type];
+                },
+                toastIcon() {
+                    const icons = {
+                        success: 'fas fa-check-circle',
+                        error: 'fas fa-exclamation-circle',
+                        info: 'fas fa-info-circle'
+                    };
+                    return icons[this.toast.type];
+                },
+                todayPosts() {
+                    const today = new Date().toISOString().split('T')[0];
+                    return this.stats.daily_posts[today] || 0;
+                }
+            },
+            async mounted() {
+                await this.refreshData();
+                this.initChart();
+                // Auto-refresh every 30 seconds
+                setInterval(this.refreshData, 30000);
+            },
+            methods: {
+                async refreshData() {
+                    this.loading = true;
+                    try {
+                        await Promise.all([this.fetchFeeds(), this.fetchStats(), this.fetchSchedulerStatus()]);
+                    } catch (error) {
+                        this.showToast('Failed to refresh data', 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                async fetchFeeds() {
+                    const res = await fetch(`${this.apiBase}/api/feeds`);
+                    this.feeds = await res.json();
+                },
+                async fetchStats() {
+                    const res = await fetch(`${this.apiBase}/api/stats`);
+                    this.stats = await res.json();
+                    this.updateChart();
+                },
+                async fetchSchedulerStatus() {
+                    const res = await fetch(`${this.apiBase}/api/scheduler/status`);
+                    const data = await res.json();
+                    this.schedulerStatus = data.running ? 'running' : 'stopped';
+                },
+                async addFeed() {
+                    if (!this.newFeed.url) return;
+                    
+                    this.adding = true;
+                    try {
+                        const res = await fetch(`${this.apiBase}/api/feeds`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.newFeed)
+                        });
+                        
+                        if (!res.ok) throw new Error(await res.text());
+                        
+                        this.showToast('Feed added successfully!', 'success');
+                        this.newFeed = { url: '', title: '' };
+                        await this.refreshData();
+                    } catch (error) {
+                        this.showToast('Failed to add feed: ' + error.message, 'error');
+                    } finally {
+                        this.adding = false;
+                    }
+                },
+                async removeFeed(id) {
+                    if (!confirm('Are you sure you want to remove this feed?')) return;
+                    
+                    try {
+                        await fetch(`${this.apiBase}/api/feeds/${id}`, { method: 'DELETE' });
+                        this.showToast('Feed removed', 'success');
+                        await this.refreshData();
+                    } catch (error) {
+                        this.showToast('Failed to remove feed', 'error');
+                    }
+                },
+                async checkFeed(id) {
+                    try {
+                        await fetch(`${this.apiBase}/api/feeds/${id}/check`, { method: 'POST' });
+                        this.showToast('Feed check initiated', 'info');
+                    } catch (error) {
+                        this.showToast('Failed to check feed', 'error');
+                    }
+                },
+                async checkAllFeeds() {
+                    try {
+                        for (const feed of this.feeds) {
+                            await this.checkFeed(feed.id);
+                        }
+                        this.showToast('All feeds queued for checking', 'info');
+                    } catch (error) {
+                        this.showToast('Failed to check feeds', 'error');
+                    }
+                },
+                showToast(message, type = 'info') {
+                    this.toast = { show: true, message, type };
+                    setTimeout(() => this.toast.show = false, 3000);
+                },
+                formatLastCheck(dateStr) {
+                    if (!dateStr) return 'Never';
+                    const date = new Date(dateStr);
+                    return date.toLocaleString();
+                },
+                initChart() {
+                    const ctx = document.getElementById('activityChart').getContext('2d');
+                    this.chart = new Chart(ctx, {
+                        type: 'line',
+                        data: { labels: [], datasets: [] },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                },
+                updateChart() {
+                    if (!this.chart) return;
+                    
+                    const dates = Object.keys(this.stats.daily_posts).slice(0, 7).reverse();
+                    const values = dates.map(d => this.stats.daily_posts[d]);
+                    
+                    this.chart.data.labels = dates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                    this.chart.data.datasets = [{
+                        label: 'Posts',
+                        data: values,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }];
+                    this.chart.update();
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

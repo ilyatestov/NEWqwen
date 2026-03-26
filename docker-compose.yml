@@ -3,3 +3,30 @@ services:
     build: .
     env_file: .env
     restart: unless-stopped
+    # Монтируем том для сохранения данных БД
+    volumes:
+      - bot_data:/app/data
+    # Ограничиваем ресурсы контейнера
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    # Логирование с ротацией
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Health check для оркестрации
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  bot_data:
+    driver: local

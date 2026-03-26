@@ -1,0 +1,10 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+sqlalchemy==2.0.23
+pydantic==1.10.13
+feedparser==6.0.10
+aiohttp==3.9.1
+beautifulsoup4==4.12.2
+python-multipart==0.0.6
+apscheduler==3.10.4
+requests==2.31.0
