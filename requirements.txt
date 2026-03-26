@@ -1,0 +1,5 @@
+aiogram==3.13.0
+feedparser
+aiosqlite
+apscheduler
+python-dotenv
